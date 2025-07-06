@@ -1,14 +1,19 @@
-from flask import Flask, request, redirect, render_template_string, session
+import sys
+from flask import Flask, jsonify, request, redirect, render_template_string, session
 import sqlite3
 import os
 from flask_limiter import Limiter
 from flask_limiter.util import get_remote_address
 from flask_cors import CORS
 from dotenv import load_dotenv
+from pydantic import BaseModel
 
 app = Flask(__name__)
 load_dotenv()
-app.secret_key = os.getenv("JWT_SECRET_KEY")  # Replace in prod
+# for sqli thing
+app.secret_key = os.getenv("JWT_SECRET_KEY")
+# for crack pin thing
+secret_pin = os.getenv("SECRET_PIN")
 CORS(app, origins=["*"])
 
 # Secure session cookie settings
@@ -17,87 +22,24 @@ app.config['SESSION_COOKIE_SECURE'] = True   # Set to True in HTTPS-only (prod) 
 app.config['SESSION_COOKIE_SAMESITE'] = 'Lax'  # Helps prevent CSRF
 
 # Rate limit: 10 requests/min per IP
-limiter = Limiter(get_remote_address, app=app, default_limits=["10 per minute"])
+# limiter = Limiter(get_remote_address, app=app, default_limits=["10 per minute"])
 
+# for sqli thing
 def init_db():
-    conn = sqlite3.connect("ctf.db")
+    db_path = "ctf.db"
+    if os.path.exists(db_path):
+        os.remove(db_path)  # clean slate
+    conn = sqlite3.connect(db_path)
     c = conn.cursor()
-    c.execute("DROP TABLE IF EXISTS users")
     c.execute("CREATE TABLE users (id INTEGER PRIMARY KEY, username TEXT, password TEXT)")
     c.execute("INSERT INTO users (username, password) VALUES ('admin', 'ctf-USER')")
     conn.commit()
     conn.close()
-    os.chmod("ctf.db", 0o444)  # Make the DB read-only after setup
+    print("Database initialized.")
 
-# login_form_html = '''
-# <!DOCTYPE html>
-# <html>
-# <head>
-#     <title>CTF Login Challenge</title>
-#     <style>
-#         body {
-#             font-family: 'Segoe UI', sans-serif;
-#             background-color: #f4f6f8;
-#             display: flex;
-#             justify-content: center;
-#             align-items: center;
-#             height: 100vh;
-#         }
-
-#         .login-box {
-#             background-color: white;
-#             padding: 40px 30px;
-#             border-radius: 12px;
-#             box-shadow: 0 0 15px rgba(0,0,0,0.1);
-#             width: 300px;
-#             text-align: center;
-#         }
-
-#         .login-box h2 {
-#             margin-bottom: 20px;
-#             color: #2d3748;
-#         }
-
-#         input[type="text"] {
-#             width: 100%;
-#             padding: 10px;
-#             margin: 10px 0 20px;
-#             border: 1px solid #ccc;
-#             border-radius: 6px;
-#             font-size: 14px;
-#         }
-
-#         button {
-#             background-color: #3182ce;
-#             color: white;
-#             padding: 10px 20px;
-#             border: none;
-#             border-radius: 6px;
-#             font-size: 15px;
-#             cursor: pointer;
-#             transition: background-color 0.2s;
-#         }
-
-#         button:hover {
-#             background-color: #2b6cb0;
-#         }
-#     </style>
-# </head>
-# <body>
-#     <div class="login-box">
-#         <h2> CTF Login</h2>
-#         <form method="POST" action="/">
-#             <input type="text" name="username" placeholder="Username" required>
-#             <input type="text" name="password" placeholder="Password" required>
-#             <button type="submit">Login</button>
-#         </form>
-#     </div>
-# </body>
-# </html>
-# '''
-
+# for sqli thing
 @app.route('/', methods=['GET', 'POST'])
-@limiter.limit("10 per minute")
+# @limiter.limit("10 per minute")
 def vulnerable_login():
     # if request.method == 'GET':
     #     return render_template_string(login_form_html)
@@ -127,6 +69,7 @@ def vulnerable_login():
 
     return "Login failed"
 
+# for sqli thing
 @app.route('/flag')
 def flag():
     print("Session:", session)
@@ -138,6 +81,24 @@ def flag():
     <code>CTF{sql_injection_login_bypassed}</code>
     '''
 
+# for crack pin thing
+class PINInput(BaseModel):
+    pin : str
+
+# for crack pin thing
+@app.route("/check-pin", methods=['POST'])
+async def check_pin():
+    data = request.get_json()
+    if not data or 'pin' not in data:
+        return jsonify({"error": "Missing pin"}), 400
+
+    if data['pin'] == secret_pin:
+        return jsonify({"status": "success", "message": "Correct pin"}), 200
+    return jsonify({"status": "fail", "message": "Incorrect pin"}), 401
+
+
 if __name__ == "__main__":
-    init_db()
-    app.run(host="0.0.0.0", port=5000)
+    if len(sys.argv) > 1 and sys.argv[1] == "init-db":
+        init_db()
+    else:
+        app.run(host="0.0.0.0", port=5000)

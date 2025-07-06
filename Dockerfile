@@ -6,14 +6,18 @@ RUN useradd -m ctfuser
 # Set working dir
 WORKDIR /app
 
-# Copy files and fix permissions
+# Install dependencies
 COPY requirements.txt ./
 RUN pip install --no-cache-dir -r requirements.txt
 
+# Copy source code
 COPY . .
 
-# Set permissions for /app and all its contents
-RUN chown -R ctfuser:ctfuser /app
+# Create DB during build time
+RUN python vuln_api.py init-db
+
+# Set DB permissions to be readable by app user
+RUN chown -R ctfuser:ctfuser /app && chmod 644 /app/ctf.db
 
 # Switch to non-root user
 USER ctfuser
