@@ -14,7 +14,7 @@ load_dotenv()
 app.secret_key = os.getenv("JWT_SECRET_KEY")
 # for crack pin thing
 secret_pin = os.getenv("SECRET_PIN")
-CORS(app, origins=["*"])
+CORS(app, resources={r"/*": {"origins": "*"}}, supports_credentials=False)
 
 # Secure session cookie settings
 app.config['SESSION_COOKIE_HTTPONLY'] = True  # JS can't access the cookie
@@ -84,17 +84,30 @@ def flag():
 # for crack pin thing
 class PINInput(BaseModel):
     pin : str
+    
+@app.route("/check-pin", methods=["OPTIONS"])
+def check_pin_options():
+    return '', 204
 
 # for crack pin thing
-@app.route("/check-pin", methods=['POST'])
-async def check_pin():
-    data = request.get_json()
-    if not data or 'pin' not in data:
-        return jsonify({"error": "Missing pin"}), 400
+@app.route("/check-pin", methods=["POST"])
+def check_pin():
+    if not request.is_json:
+        return jsonify({"message": "Content-Type must be application/json", "status": "error"}), 400
 
-    if data['pin'] == secret_pin:
-        return jsonify({"status": "success", "message": "Correct pin"}), 200
-    return jsonify({"status": "fail", "message": "Incorrect pin"}), 401
+    try:
+        data = request.get_json()
+        pin = data.get("pin")
+    except Exception:
+        return jsonify({"message": "Invalid JSON", "status": "error"}), 400
+
+    if not pin:
+        return jsonify({"message": "No pin provided", "status": "error"}), 400
+
+    if pin == secret_pin:
+        return jsonify({"message": "Correct pin", "status": "success", "flag": "CTF{pin_bruteforced_successfully}"}), 200
+    else:
+        return jsonify({"message": "Incorrect pin", "status": "failure"}), 401
 
 
 if __name__ == "__main__":

